@@ -15,3 +15,1133 @@
 ##############################################################################################################################################
 ##############################################################################################################################################
 ##############################################################################################################################################
+
+
+#####################################################################################################################################
+#													Función Menú del named.conf														#
+#####################################################################################################################################
+_menuNC(){
+clear
+echo '
+			    _    ____ ___ ____ _____ _____ _   _ _____ _____
+			   / \  / ___|_ _/ ___|_   _| ____| \ | |_   _| ____|
+			  / _ \ \___ \| |\___ \ | | |  _| |  \| | | | |  _|
+			 / ___ \ ___) | | ___) || | | |___| |\  | | | | |___
+			/_/   \_\____/___|____/ |_| |_____|_| \_| |_| |_____|
+			     _      		 ____ ___ _   _ ____
+			  __| | ___ 		| __ )_ _| \ | |  _ \
+			 / _` |/ _ \		|  _ \| ||  \| | | | |
+			| (_| |  __/		| |_) | || |\  | |_| |
+			 \__,_|\___|		|____/___|_| \_|____/(named.conf)
+				MENU DE /etc/bind/named.conf
+
+		0.- Ayuda.
+		1.- Incluir una nueva ruta en /etc/bind/named.conf.
+		2.- Crear una vista con su zona.
+		3.- Editar una vista.
+		4.- Borrar una vista(incluida su zona y base de datos).
+
+		9.- Salir
+		  ___________________________________________________________
+							Elija una opción'
+}
+####################################################################################################################################
+
+
+#####################################################################################################################################
+#												Función Menú para la creación de vistas												#
+#####################################################################################################################################
+_vistazona(){
+clear
+echo 'Introduzca el  nombre de la vista'
+read vista
+echo 'Introduzca las redes que quiere incluir en la vista con su máscara de red(Ej: para la dirección de loopback que es 127.0.0.1 se debe introducir 127.0.0.0/8; ). Si va a incluir mas de una red tiene que estar separado por ";"(Ej: 192.168.1.0/24; 127.0.0.0/8)'
+read mc
+echo 'view "'$vista'" {'>> /etc/bind/view.$vista
+echo '  match-clients { '$mc'};'>> /etc/bind/view.$vista
+echo 'Introduzca un nombre de zona. Si es una zona de Resolución inversa, introduzca la dirección de red al revés(Ej: de 192.168.1.0/24, sería 1.168.192 o de 172.20.0.0/16, que sería 20.172). '
+read zone
+#############################################################################
+#		Pregunta al usuario si es una zona de resolución directa o inversa	#
+#############################################################################
+echo 'Resolución de zona,¿directa o inversa?
+(D/I)'
+read res
+if test "$res" = "i" -o "$res" = "I"
+then
+	echo '  zone "'$zone'.in-addr.arpa" {'>> /etc/bind/view.$vista
+else
+	echo '  zone "'$zone'" {'>> /etc/bind/view.$vista
+fi
+#############################################################################
+
+#############################################################################
+#		Pregunta al usuario si es de tipo maestro esclavo o reenviador		#
+#############################################################################
+echo 'Introduzca un tipo de zona(master, slave, forward)'
+read tipo
+#################################
+#		Si es maestra			#
+#################################
+if test $tipo = "master"
+then
+	echo '   type master;'>> /etc/bind/view.$vista
+	echo 'Introduzca el nombre de fichero para la base de datos. Se guardará en /etc/bind/ con el prefijo db(Ej: si introduce "baseDeDatos"  se creará el fichero /etc/bind/db.baseDeDatos).'
+	read nombredb
+	echo '   file "/etc/bind/db.'$nombredb'";'>> /etc/bind/view.$vista
+#################################
+
+#################################
+#		Si es esclava			#
+#################################
+elif test $tipo = "slave"
+then
+	echo '   type slave;'>> /etc/bind/view.$vista
+	echo 'Introduzca la o las ips de el o los servidores maestros con los que quiere conectar, al acabar has de poner (192.168.1.1; )'
+	read ipmaestro
+	echo '   masters {'$ipmaestro'};'>> /etc/bind/view.$vista
+	echo 'Introduzca el nombre de fichero para la base de datos. Se guardará en /etc/bind/ con el prefijo db(Ej: si introduce "baseDeDatos"  se creará el fichero /etc/bind/db.baseDeDatos).'
+	read nombredb
+	echo '   file "/etc/bind/db.'$nombredb'";'>> /etc/bind/view.$vista
+#################################
+
+#################################
+#		Si es reenviadora		#
+#################################
+elif test $tipo = "forward"
+then
+	echo '   type forward;'>> /etc/bind/view.$vista
+	echo 'Introduzca la o las ips de el o los servidores forwarders con los que quiere conectar, al acabar has de poner (192.168.1.1; )'
+	read ipmaestro
+	echo '   forwarders {'$ipmaestro'};'>> /etc/bind/view.$vista
+	echo 'Introduzca el nombre de fichero para la base de datos. Se guardará en /etc/bind/ con el prefijo db(Ej: si introduce "baseDeDatos"  se creará el fichero /etc/bind/db.baseDeDatos).'
+	read nombredb
+	echo '   file "/etc/bind/db.'$nombredb'";'>> /etc/bind/view.$vista
+fi
+#################################
+
+#############################################################################
+_menuOV # Llamada a la función menú de de opciones de zona
+echo '};'>> /etc/bind/view.$vista  #cierra la zona
+echo '};'>> /etc/bind/view.$vista  #cierra la vista
+echo '/etc/bind/view.'$vista >> ./history/view.txt #guarda en un registro la vista
+echo '/etc/bind/db.'$nombredb >> ./history/dbview.txt #guarda en un registro el fichero de la base de datos
+echo 'Se ha creado la vista en el fichero /etc/bind/view.'$vista
+#############################################################################
+#	Sistema de contro que evita que se incluya dos veces la misma vista		#
+#############################################################################
+vistat='include "/etc/bind/view.'$vista'";'
+sw=0
+while read line
+do
+	if test "$line" = "$vistat"
+	then
+		sw=1
+	fi
+done < history/view.txt
+if test $sw -eq 0
+then
+	echo "$vistat" >> /etc/bind/named.conf
+fi
+#############################################################################
+cp /etc/bind/db.empty /etc/bind/db.$nombredb #crea el fichero de base de datos de la zona
+echo 'Se ha creado el fichero /etc/bind/db.'$nombredb
+}
+####################################################################################################################################
+
+
+#####################################################################################################################################
+#												Función ayuda de opciones de vistas													#
+#####################################################################################################################################
+_HOPC(){
+echo'
+A continuación se mostrarán algunas opciones de declaración y para qué sirven:
+
+• allow-query	—	Especifica qué hosts tienen permitido consultar este servidor de nombres.
+Por defecto, todos los hosts tienen derecho a consultar. Sintaxis:
+	allow-query {xxx.xxx.xxx.xxx;[ yyy.yyy.yyy.yyy;]};
+
+• allow-recursion	—	Especifica qué hosts tienen permitido hacer peticiones recursivas. Sintaxis:
+	allow-recursion {xxx.xxx.xxx.xxx;[ yyy.yyy.yyy.yyy;]};
+
+• blackhole	—	Especifica(mediante lista negra) los hosts no permitidos para consultar al servidor de nombres. Sintaxis:
+	blackhole {xxx.xxx.xxx.xxx;[ yyy.yyy.yyy.yyy;]};
+
+• directory	—	Especifica el directorio de trabajo named si es diferente del valor predeterminado(que es /var/named).Sintaxis:
+	directory	"/rutaAElegir/ficheroEnCuestion";
+
+• forward	—	Especifica el comportamiento de reenvío de una directiva forwarders servers.
+Se aceptan las siguientes opciones:
+
+	forward first	—	Indica que los forwarders sean consultados antes de que named intente resolverlos.
+
+	forward only	—	Especifica que named no intente la resolución de nombres aun en el caso de que los forwarders fallen.
+
+• forwarders	—	Indica una lista de direcciones IP para los servidores de nombres donde las peticiones se pueden reenviar para ser resueltas.Sintaxis:
+	forwarders {xxx.xxx.xxx.xxx;[ yyy.yyy.yyy.yyy;]};
+
+• listen-on	—	Especifica la interfaz de red(mediante la IP de la máquina) en la cual escuchar. Por defecto, se usan todas las interfaces.Sintaxis:
+	listen-on {xxx.xxx.xxx.xxx;[ yyy.yyy.yyy.yyy;]};
+
+
+• notify	—	Controla si named notifica a los servidores esclavos las modificaciones de una zona:
+
+	notify yes	—	Notifica a los servidores esclavos.
+
+	notify no	—	No notifica.
+
+• pid-file	—	Especifica la ubicación del archivo del proceso ID creado por named. Sintaxis:
+	pid-file	"/rutaAElegir/ficheroEnCuestion";
+
+
+• statistics-file	—	Permite especificar la localización alternativa de los archivos de estadísticas. Por defecto, están en /var/named/named.stats . Sintaxis:
+	statistics-file	"/rutaAElegir/ficheroEnCuestion";' | more
+}
+####################################################################################################################################
+
+
+#####################################################################################################################################
+#														Función de opciones de vistas												#
+#####################################################################################################################################
+_menuOV(){
+echo '¿Desea configurar otras opciones de declaración?(Escriba "si","no" o "ayuda")'
+read ipopciones
+if test "$ipopciones" = "ayuda" -o "$ipopciones" = "AYUDA" 
+then
+	_HOPC
+elif test "$ipopciones" = "si" -o "$ipopciones" = "SI"
+then
+	until test "$continuar" = "no" -o "$continuar" = "NO"
+	do
+		echo 'Introduzca la opción que desee con la sintaxis correcta(no se olvide del ";"). Para saber la sintaxis escriba "ayuda".'
+		read opcDec
+		if test "$opcDec" = "ayuda" -o "$opcDec" = "AYUDA"
+		then
+			clear
+			_HOPC
+		else
+		echo '  '$opcDec>> /etc/bind/view.$vista
+		fi
+		echo  '¿Desea introducir más opciones?(Introduzca "si" o "no")'
+		read continuar
+	done
+fi
+}
+####################################################################################################################################
+
+
+#####################################################################################################################################
+#														Función de borrado de vistas												#
+#####################################################################################################################################
+_borraVista(){
+#############################################################################
+#							Muestra las vistas creadas						#
+#############################################################################
+echo "Las vistas creadas hasta ahora son:"
+cuenta=1
+while read line
+do
+	echo "$cuenta.- $line"
+	cuenta=`expr $cuenta + 1`
+done < history/view.txt
+echo "Elija un número"
+read edi
+#############################################################################
+
+
+#############################################################################
+#				Borra la vista (tambien del fichero view.txt)				#
+#############################################################################
+cuenta=1
+while read line
+do 
+	if test $cuenta -ne $edi
+	then
+		echo $line >>history/.temp
+	else
+		linea='include "'$line'";'
+		rm $line
+	fi
+	cuenta=`expr $cuenta + 1`
+done < history/view.txt
+rm history/view.txt > /dev/null
+mv history/.temp history/view.txt > /dev/null
+#############################################################################
+
+
+#############################################################################
+#			Borra la base de datos(tambien del fichero dbview.txt)			#
+#############################################################################
+cuenta=1
+while read line
+do 
+	if test $cuenta -ne $edi
+	then
+		echo $line >>history/.temp
+	else
+		rm $line
+	fi
+	cuenta=`expr $cuenta + 1`
+done < history/dbview.txt
+rm history/dbview.txt > /dev/null
+mv history/.temp history/dbview.txt > /dev/null
+#############################################################################
+
+
+#############################################################################
+#			Borra el include del named.conf que apuntaba a la vista			#
+#############################################################################
+while read line
+do 
+	if test "$line" != "$linea"
+	then
+		echo $line >>history/.temp
+	fi
+done < /etc/bind/named.conf
+cat history/.temp
+rm /etc/bind/named.conf
+mv history/.temp /etc/bind/named.conf
+#############################################################################
+}
+####################################################################################################################################
+
+
+#####################################################################################################################################
+#																																	#
+#													Función de edición del named.conf												#
+#																																	#
+#####################################################################################################################################
+_NC(){
+# Opción por defecto
+opc="0"
+# bucle mientas la opcion indicada sea diferente de 9 (salir)
+until test "$opc" -eq "9"
+do
+	_menuNC
+	read opc
+	case $opc in
+#############################################################################
+#	Ayuda de las opciones de configuración del fichero /etc/bind/named.conf	#
+#############################################################################
+		0)
+		clear
+		_HOPC
+		echo "Pulse una tecla para continuar"
+		read v;;
+#############################################################################
+#				Incluye una nueva ruta en /etc/bind/named.conf				#
+#############################################################################
+		1)
+		echo 'Introduzca la ruta completa del archivo'
+		read arch
+		echo 'include "'$arch'";'>> /etc/bind/named.conf
+		echo 'Se ha incluido el archivo'$arch
+		echo $arch >> ./history/file.txt
+		echo "Pulse una tecla para continuar"
+		read v;;
+#############################################################################
+#			Crea una vista con su zona en /etc/bind/named.conf				#
+#############################################################################
+		2)
+		_vistazona
+		echo "Pulse una tecla para continuar"
+		read v;;
+#############################################################################
+#						Muestra las vistas creadas							#
+#############################################################################
+		3)
+		echo "Las vistas creadas hasta ahora son:"
+		cuenta=1
+		while read line
+		do 
+			echo "$cuenta.- $line"
+			cuenta=`expr $cuenta + 1`
+		done < history/view.txt
+#############################################################################
+
+
+#############################################################################
+#						Asigna el fichero a una variable					#
+#############################################################################
+		echo "Elija un número"
+		read edi
+		cuenta=1
+		while read line
+		do 
+			if test $cuenta -eq $edi
+			then
+				linea=$line
+			fi
+			cuenta=`expr $cuenta + 1`
+		done < history/view.txt
+#############################################################################
+		nano $linea
+		echo "Pulse una tecla para continuar"
+		read v;;
+		4)
+		_borraVista
+		echo "Pulse una tecla para continuar"
+		read v;;
+	esac
+done
+}
+####################################################################################################################################
+
+
+##############################################################################################################################################
+##############################################################################################################################################
+
+
+##############################################################################################################################################
+##############################################################################################################################################
+##############################################################################################################################################
+######				┏━╸┏━┓╺┳┓╻┏━╸┏━┓	┏━┓┏━╸┏━╸┏━╸┏━┓┏━╸┏┓╻╺┳╸┏━╸	┏━┓╻  	┏┓╻┏━┓┏┳┓┏━╸╺┳┓ ┏━╸┏━┓┏┓╻┏━╸ ╻  ┏━┓┏━╸┏━┓╻  				######
+######				┃  ┃ ┃ ┃┃┃┃╺┓┃ ┃	┣┳┛┣╸ ┣╸ ┣╸ ┣┳┛┣╸ ┃┗┫ ┃ ┣╸ 	┣━┫┃  	┃┗┫┣━┫┃┃┃┣╸  ┃┃ ┃  ┃ ┃┃┗┫┣╸  ┃  ┃ ┃┃  ┣━┫┃  				######
+######				┗━╸┗━┛╺┻┛╹┗━┛┗━┛	╹┗╸┗━╸╹  ┗━╸╹┗╸┗━╸╹ ╹ ╹ ┗━╸	╹ ╹┗━╸	╹ ╹╹ ╹╹ ╹┗━╸╺┻┛╹┗━╸┗━┛╹ ╹╹ ╹ ┗━╸┗━┛┗━╸╹ ╹┗━╸				######
+##############################################################################################################################################
+##############################################################################################################################################
+##############################################################################################################################################
+
+
+#####################################################################################################################################
+#												Función Menú del named.conf.local													#
+#####################################################################################################################################
+_menuNCL(){
+clear
+echo '
+			    _    ____ ___ ____ _____ _____ _   _ _____ _____
+			   / \  / ___|_ _/ ___|_   _| ____| \ | |_   _| ____|
+			  / _ \ \___ \| |\___ \ | | |  _| |  \| | | | |  _|
+			 / ___ \ ___) | | ___) || | | |___| |\  | | | | |___
+			/_/   \_\____/___|____/ |_| |_____|_| \_| |_| |_____|
+			     _      		 ____ ___ _   _ ____
+			  __| | ___ 		| __ )_ _| \ | |  _ \
+			 / _` |/ _ \		|  _ \| ||  \| | | | |
+			| (_| |  __/		| |_) | || |\  | |_| |
+			 \__,_|\___|		|____/___|_| \_|____/(named.conf.local)
+				MENU DE /etc/bind/named.conf.local
+
+		1.- Crear una zona.
+		2.- Editar una zona.
+		3.- Borrar una zona(incluida su base de datos).
+
+		9.- Salir
+		  ___________________________________________________________
+							Elija una opción'
+}
+####################################################################################################################################
+
+
+#####################################################################################################################################
+#												Función Menú para la creación de zonas												#
+#####################################################################################################################################
+_nuevazona(){
+clear
+echo 'Introduzca un nombre de zona. Si es una zona de Resolución inversa, introduzca la dirección de red al revés(Ej: de 192.168.1.0/24, sería 1.168.192 o de 172.20.0.0/16, que sería 20.172). '
+read zone
+#############################################################################
+#	Pregunta al usuario si es una zona de resolución directa o inversa		#
+#############################################################################
+echo 'Resolución de zona,¿directa o inversa?
+(D/I)'
+read res
+if test "$res" = "i" -o "$res" = "I"
+then
+	echo '  zone "'$zone'.in-addr.arpa" {'>> /etc/bind/zone.$zone
+else
+	echo '  zone "'$zone'" {'>> /etc/bind/zone.$zone
+fi
+#############################################################################
+
+#############################################################################
+#		Pregunta al usuario si es de tipo maestro esclavo o reenviadora		#
+#############################################################################
+echo 'Introduzca un tipo de zona(master, slave, forward)'
+read tipo
+#################################
+#		Si es maestra			#
+#################################
+if test $tipo = "master"
+then
+	echo '   type master;'>> /etc/bind/zone.$zone
+	echo 'Introduzca el nombre de fichero para la base de datos. Se guardará en /etc/bind/ con el prefijo db(Ej: si introduce "baseDeDatos"  se creará el fichero /etc/bind/db.baseDeDatos).'
+	read nombredb
+	echo '   file "/etc/bind/db.'$nombredb'";'>> /etc/bind/zone.$zone
+#################################
+
+#################################
+#		Si es esclava			#
+#################################
+elif test $tipo = "slave"
+then
+	echo '   type slave;'>> /etc/bind/zone.$zone
+	echo 'Introduzca la o las ips de el o los servidores maestros con los que quiere conectar, al acabar has de poner (192.168.1.1; )'
+	read ipmaestro
+	echo '   masters {'$ipmaestro'};'>> /etc/bind/zone.$zone
+	echo 'Introduzca el nombre de fichero para la base de datos. Se guardará en /etc/bind/ con el prefijo db(Ej: si introduce "baseDeDatos"  se creará el fichero /etc/bind/db.baseDeDatos).'
+	read nombredb
+	echo '   file "/etc/bind/db.'$nombredb'";'>> /etc/bind/zone.$zone
+#################################
+
+#################################
+#		Si es reenviadora		#
+#################################
+elif test $tipo = "forward"
+then
+	echo '   type forward;'>> /etc/bind/zone.$zone
+	echo 'Introduzca la o las ips de el o los servidores forwarders con los que quiere conectar, al acabar has de poner (192.168.1.1; )'
+	read ipmaestro
+	echo '   forwarders {'$ipmaestro'};'>> /etc/bind/zone.$zone
+	echo 'Introduzca el nombre de fichero para la base de datos. Se guardará en /etc/bind/ con el prefijo db(Ej: si introduce "baseDeDatos"  se creará el fichero /etc/bind/db.baseDeDatos).'
+	read nombredb
+	echo '   file "/etc/bind/db.'$nombredb'";'>> /etc/bind/zone.$zone
+fi
+#################################
+
+#############################################################################
+_menuOZ #Llamada a la función menú de de opciones de zona
+echo '};'>> /etc/bind/zone.$zone
+echo 'Se ha creado la vista en el fichero /etc/bind/zone.'$zone
+echo '/etc/bind/zone.'$zone >> ./history/zone.txt #guarda en un registro la zona
+echo '/etc/bind/db.'$nombredb >> ./history/dbzone.txt #guarda en un registro el fichero de la base de datos
+cp /etc/bind/db.empty /etc/bind/db.$nombredb #crea el fichero de base de datos de la zona 
+echo 'Se ha creado el fichero /etc/bind/db.'$nombredb
+#############################################################################
+#	Sistema de contro que evita que se incluya dos veces la misma vista		#
+#############################################################################
+zonet='include "/etc/bind/zone.'$zone'";'
+sw=0
+while read line
+do 
+	if test "$line" = "$zonet"
+	then
+		sw=1
+	fi
+done < history/view.txt
+if test $sw -eq 0
+then
+	echo "$zonet" >> /etc/bind/named.conf.local
+fi
+#############################################################################
+}
+####################################################################################################################################
+
+
+#####################################################################################################################################
+#												Función de ayuda de opciones de zonas												#
+#####################################################################################################################################
+_HOZ(){
+echo'
+A continuación se mostrarán algunas opciones de declaración y para qué sirven:
+
+• allow-query — Especifica qué hosts tienen permitido consultar este servidor de nombres.
+Por defecto, todos los hosts tienen derecho a consultar. Sintaxis:
+  allow-query {xxx.xxx.xxx.xxx;[ yyy.yyy.yyy.yyy;]};
+
+• allow-recursion — Especifica qué hosts tienen permitido hacer peticiones recursivas. Sintaxis:
+  allow-recursion {xxx.xxx.xxx.xxx;[ yyy.yyy.yyy.yyy;]};
+
+• notify  — Controla si named notifica a los servidores esclavos las modificaciones de una zona:
+
+  notify yes  — Notifica a los servidores esclavos.
+
+  notify no — No notifica.
+
+• statistics-file — Permite especificar la localización alternativa de los archivos de estadísticas. Por defecto, están en /var/named/named.stats . Sintaxis:
+  statistics-file "/rutaAElegir/ficheroEnCuestion";' | more
+}
+####################################################################################################################################
+
+
+#####################################################################################################################################
+#													Función de opciones de zonas													#
+#####################################################################################################################################
+_menuOZ(){
+echo '¿Desea configurar otras opciones de declaración?(Escriba "si","no" o "ayuda")'
+read ipopciones
+if test "$ipopciones" = "ayuda" -o "$ipopciones" = "AYUDA"
+then
+	_HOZ
+elif test "$ipopciones" = "si" -o "$ipopciones" = "SI"
+then
+	until test "$continuar" = "no" -o "$continuar" = "NO"
+	do
+		echo 'Introduzca la opción que desee con la sintaxis correcta(no se olvide del ";"). Para saber la sintaxis escriba "ayuda".'
+		read opcDec
+		if test "$opcDec" = "ayuda" -o "$opcDec" = "AYUDA"
+		then
+			clear
+			_HOPC
+		else
+			echo '  '$opcDec>> /etc/bind/zone.$zone
+		fi
+		echo  '¿Desea introducir más opciones?(Introduzca "si" o "no")'
+		read continuar
+	done
+fi
+}
+####################################################################################################################################
+
+
+#####################################################################################################################################
+#													Función de borrado de zonas														#
+#####################################################################################################################################
+_borraZona(){
+#############################################################################
+#							Muestra las zonas creadas						#
+#############################################################################
+echo "Las zonas creadas hasta ahora son:"
+cuenta=1
+while read line
+do 
+	echo "$cuenta.- $line"
+	cuenta=`expr $cuenta + 1`
+done < history/zone.txt
+echo "Elija un número"
+read edi
+#############################################################################
+
+
+#############################################################################
+#				Borra la zona (tambien del fichero zone.txt)				#
+#############################################################################
+cuenta=1
+while read line
+do 
+	if test $cuenta -ne $edi
+	then
+		echo $line >>history/.temp
+	else
+		linea='include "'$line'";'
+		rm $line
+	fi
+	cuenta=`expr $cuenta + 1`
+done < history/zone.txt
+rm history/zone.txt > /dev/null
+mv history/.temp history/zone.txt > /dev/null
+#############################################################################
+
+
+#############################################################################
+#			Borra la base de datos(tambien del fichero dbzone.txt)			#
+#############################################################################
+cuenta=1
+while read line
+do 
+	if test $cuenta -ne $edi
+	then
+		echo $line >>history/.temp
+	else
+		rm $line
+	fi
+	cuenta=`expr $cuenta + 1`
+done < history/dbzone.txt
+rm history/dbzone.txt > /dev/null
+mv history/.temp history/dbzone.txt > /dev/null
+#############################################################################
+
+
+#############################################################################
+#		Borra el include del named.conf.local que apuntaba a la zona		#
+#############################################################################
+while read line
+do 
+	if test "$line" != "$linea"
+	then
+		echo $line >>history/.temp
+	fi
+done < /etc/bind/named.conf.local
+cat history/.temp
+rm /etc/bind/named.conf.local
+mv history/.temp /etc/bind/named.conf.local
+#############################################################################
+}
+####################################################################################################################################
+
+
+#####################################################################################################################################
+#																																	#
+#												Función de edición del named.conf.local												#
+#																																	#
+#####################################################################################################################################
+_NCL(){
+# Opción por defecto
+opc="0"
+# bucle mientas la opcion indicada sea diferente de 9 (salir)
+until test "$opc" -eq "9"
+do
+	_menuNCL
+	read opc
+	case $opc in
+#############################################################################
+#			Ayuda de las opciones de configuración de zona					#
+#############################################################################
+		0)
+		clear
+		_HOZ
+		echo "Pulse una tecla para continuar"
+		read v;;
+#############################################################################
+#				Crea una zona en /etc/bind/named.conf.local					#
+#############################################################################
+		1)
+		_nuevazona
+		echo "Pulse una tecla para continuar"
+		read v;;
+#############################################################################
+#						Muestra las zonas creadas							#
+#############################################################################
+		2)
+		echo "Las vistas creadas hasta ahora son:"
+		cuenta=1
+		while read line
+		do 
+			echo "$cuenta.- $line"
+			cuenta=`expr $cuenta + 1`
+		done < history/zone.txt
+#############################################################################
+
+
+#############################################################################
+#					Asigna el fichero a una variable						#
+#############################################################################
+		echo "Elija un número"
+		read edi
+		cuenta=1
+		while read line
+		do 
+			if test $cuenta -eq $edi
+			then
+				linea=$line
+			fi
+			cuenta=`expr $cuenta + 1`
+		done < history/zone.txt
+#############################################################################
+		nano $linea
+		echo "Pulse una tecla para continuar"
+		read v;;
+		3)
+		_borraZona
+		echo "Pulse una tecla para continuar"
+		read v;;
+	esac
+done
+}
+####################################################################################################################################
+
+
+##############################################################################################################################################
+##############################################################################################################################################
+
+
+##############################################################################################################################################
+##############################################################################################################################################
+##############################################################################################################################################
+######				┏━╸┏━┓╺┳┓╻┏━╸┏━┓	┏━┓┏━╸┏━╸┏━╸┏━┓┏━╸┏┓╻╺┳╸┏━╸	┏━┓	╻  ┏━┓┏━┓	┏┓ ┏━┓┏━┓┏━╸┏━┓	╺┳┓┏━╸	╺┳┓┏━┓╺┳╸┏━┓┏━┓				######
+######				┃  ┃ ┃ ┃┃┃┃╺┓┃ ┃	┣┳┛┣╸ ┣╸ ┣╸ ┣┳┛┣╸ ┃┗┫ ┃ ┣╸ 	┣━┫	┃  ┣━┫┗━┓	┣┻┓┣━┫┗━┓┣╸ ┗━┓	 ┃┃┣╸ 	 ┃┃┣━┫ ┃ ┃ ┃┗━┓				######
+######				┗━╸┗━┛╺┻┛╹┗━┛┗━┛	╹┗╸┗━╸╹  ┗━╸╹┗╸┗━╸╹ ╹ ╹ ┗━╸	╹ ╹	┗━╸╹ ╹┗━┛	┗━┛╹ ╹┗━┛┗━╸┗━┛	╺┻┛┗━╸	╺┻┛╹ ╹ ╹ ┗━┛┗━┛				######
+##############################################################################################################################################
+##############################################################################################################################################
+##############################################################################################################################################
+
+
+#####################################################################################################################################
+#														Función Menú de otros														#
+#####################################################################################################################################
+_menuBDD(){
+clear
+echo '
+			    _    ____ ___ ____ _____ _____ _   _ _____ _____
+			   / \  / ___|_ _/ ___|_   _| ____| \ | |_   _| ____|
+			  / _ \ \___ \| |\___ \ | | |  _| |  \| | | | |  _|
+			 / ___ \ ___) | | ___) || | | |___| |\  | | | | |___
+			/_/   \_\____/___|____/ |_| |_____|_| \_| |_| |_____|
+			     _      		 ____ ___ _   _ ____
+			  __| | ___ 		| __ )_ _| \ | |  _ \
+			 / _` |/ _ \		|  _ \| ||  \| | | | |
+			| (_| |  __/		| |_) | || |\  | |_| |
+			 \__,_|\___|		|____/___|_| \_|____/(BasesDeDatos)
+				MENU DE OPCIONES DE BASES DE DATOS
+
+		0.- Ayuda
+		1.- Visualizar una base de datos
+		2.- Editar una base de datos
+		3.- Añadir un registro a una base de datos
+
+		9.- Salir
+		  ___________________________________________________________
+							Elija una opción'
+}
+####################################################################################################################################
+
+#####################################################################################################################################
+#																																	#
+#												Función de edición de bases de datos												#
+#																																	#
+#####################################################################################################################################
+_BDD(){
+# Opción por defecto
+opc="0"
+# bucle mientas la opcion indicada sea diferente de 9 (salir)
+until test "$opc" -eq "9"
+do
+	_menuBDD
+	read opc
+#############################################################################
+#				Pasa todas bases de datos creadas a un fichero				#
+#############################################################################
+./history/dbview.txt > ./history/dbtemp.txt
+./history/dbzone.txt > ./history/dbtemp.txt
+	case $opc in
+		0)
+		echo '
+			A continuación se mostrará una breve descripción de cada opción:
+	1.- Visualizar una base de datos
+		Con la primera opción visuailzas un fichero de base de datos.
+	2.- Editar una base de datos
+		Con la segunda opción se abre un editor para modificar un fichero de base de datos.
+	3.- Añadir un registro a una base de datos
+		Con esta opción añades un registro a una base de datos con un asistente.'
+		echo "Pulse una tecla para continuar"
+		read v;;
+
+		1)
+#############################################################################
+#						Visualiza una base de datos							#
+#############################################################################
+		echo "Las bases de datos creadas hasta ahora son:"
+		cuenta=1
+		while read line
+		do 
+			echo "$cuenta.- $line"
+			cuenta=`expr $cuenta + 1`
+		done < history/dbtemp.txt
+		echo "Elija un número:"
+		read edi
+		cuenta=1
+		while read line
+		do 
+			if test $cuenta -eq $edi
+			then
+				linea=$line
+			fi
+			cuenta=`expr $cuenta + 1`
+		done < history/dbtemp.txt
+		cat $linea
+#############################################################################
+		echo "Pulse una tecla para continuar"
+		read v;;
+
+#############################################################################
+#							Edita la base de datos							#
+#############################################################################
+		2)
+		echo "Las bases de datos creadas hasta ahora son:"
+		cuenta=1
+		while read line
+		do 
+			echo "$cuenta.- $line"
+			cuenta=`expr $cuenta + 1`
+		done < history/dbtemp.txt
+		echo "Elija un número:"
+		read edi
+		cuenta=1
+		while read line
+		do 
+			if test $cuenta -eq $edi
+			then
+				linea=$line
+			fi
+			cuenta=`expr $cuenta + 1`
+		done < history/dbtemp.txt
+		nano $linea
+#############################################################################
+		echo "Pulse una tecla para continuar"
+		read v;;
+#############################################################################
+#					Añade registros a la base de datos						#
+#############################################################################
+		3)
+		echo "Las bases de datos creadas hasta ahora son:"
+		cuenta=1
+		while read line
+		do 
+			echo "$cuenta.- $line"
+			cuenta=`expr $cuenta + 1`
+		done < history/dbtemp.txt
+		echo "Elija un número:"
+		read edi
+		cuenta=1
+		while read line
+		do 
+			if test $cuenta -eq $edi
+			then
+				linea=$line
+			fi
+			cuenta=`expr $cuenta + 1`
+		done < history/dbtemp.txt
+		nano $linea
+		echo '¿La base de datos pertenece a una resolución de zona directa o inversa?
+		(D/I)'
+		read res
+		continuar="si"
+		until test "$continuar" = "no" -o "$continuar" = "NO"
+		do
+			if test "$res" = "i" -o "$res" = "I"
+			then
+				echo 'Indique los dígitos que identifican al host a registrar'
+				read host
+				echo 'Indique si va a introducir un registro de NS(Servidor de Nombre) o PTR(puntero a un nombre)'
+				read tipo
+				echo 'Indique el nombre del host a registrar'
+				read name
+				echo $host'	IN	'$tipo'	'$name >> $linea
+			else
+				echo 'Indique los dígitos que identifican al host a registrar'
+				read host
+				echo 'Indique si va a introducir un registro de NS(Servidor de Nombre), A(nombre), CNAME(alias) o MX(Servidor de Correo)'
+				read tipo
+				echo 'Indique el nombre del host a registrar'
+				read name
+				echo $name'	IN	'$tipo'	'$host >> $linea
+			fi
+			echo  '¿Desea introducir más opciones?(Introduzca "si" o "no")'
+			read continuar
+		done
+#############################################################################
+#############################################################################
+		echo "Pulse una tecla para continuar"
+		read v;;
+	esac
+rm ./history/dbtemp.txt
+done
+}
+####################################################################################################################################
+
+
+##############################################################################################################################################
+##############################################################################################################################################
+
+
+##############################################################################################################################################
+##############################################################################################################################################
+##############################################################################################################################################
+######	┏━╸┏━┓╺┳┓╻┏━╸┏━┓	╺┳┓┏━╸╻  	┏━┓┏━╸┏━┓╺┳╸┏━┓	╺┳┓┏━╸	┏━╸╻┏━╸╻ ╻┏━╸┏━┓┏━┓┏━┓	╺┳┓┏━╸	┏━╸┏━┓┏┓╻┏━╸╻┏━╸╻ ╻┏━┓┏━┓┏━╸╻┏━┓┏┓╻		######
+######	┃  ┃ ┃ ┃┃┃┃╺┓┃ ┃	 ┃┃┣╸ ┃  	┣┳┛┣╸ ┗━┓ ┃ ┃ ┃	 ┃┃┣╸ 	┣╸ ┃┃  ┣━┫┣╸ ┣┳┛┃ ┃┗━┓	 ┃┃┣╸ 	┃  ┃ ┃┃┗┫┣╸ ┃┃╺┓┃ ┃┣┳┛┣━┫┃  ┃┃ ┃┃┗┫		######
+######	┗━╸┗━┛╺┻┛╹┗━┛┗━┛	╺┻┛┗━╸┗━╸	╹┗╸┗━╸┗━┛ ╹ ┗━┛	╺┻┛┗━╸	╹  ╹┗━╸╹ ╹┗━╸╹┗╸┗━┛┗━┛	╺┻┛┗━╸	┗━╸┗━┛╹ ╹╹  ╹┗━┛┗━┛╹┗╸╹ ╹┗━╸╹┗━┛╹ ╹		######
+##############################################################################################################################################
+##############################################################################################################################################
+##############################################################################################################################################
+
+
+#####################################################################################################################################
+#														Función Menú de otros														#
+#####################################################################################################################################
+_menuNCO(){
+clear
+echo '
+			    _    ____ ___ ____ _____ _____ _   _ _____ _____
+			   / \  / ___|_ _/ ___|_   _| ____| \ | |_   _| ____|
+			  / _ \ \___ \| |\___ \ | | |  _| |  \| | | | |  _|
+			 / ___ \ ___) | | ___) || | | |___| |\  | | | | |___
+			/_/   \_\____/___|____/ |_| |_____|_| \_| |_| |_____|
+			     _      		 ____ ___ _   _ ____
+			  __| | ___ 		| __ )_ _| \ | |  _ \
+			 / _` |/ _ \		|  _ \| ||  \| | | | |
+			| (_| |  __/		| |_) | || |\  | |_| |
+			 \__,_|\___|		|____/___|_| \_|____/(otros)
+		MENU DE /etc/bind/named.conf.options Y /etc/bind/named.conf.default-zones
+
+		1.- Visualizar el fichero /etc/bind/named.conf.options
+		2.-	Editar el fichero /etc/bind/named.conf.options
+		3.- Visualizar el fichero /etc/bind/named.conf.default-zones
+		4.- Editar el fichero /etc/bind/named.conf.default-zones
+		5.- Visualizar el fichero /etc/bind/named.conf
+		6.- Editar el fichero /etc/bind/named.conf
+
+		9.- Salir
+		  ___________________________________________________________
+							Elija una opción'
+}
+####################################################################################################################################
+
+#####################################################################################################################################
+#												Función Menú del named.conf.local													#
+#####################################################################################################################################
+_NCO(){
+# Opción por defecto
+opc="0"
+# bucle mientas la opcion indicada sea diferente de 9 (salir)
+until test "$opc" -eq "9"
+do
+	_menuNCO
+	read opc
+	case $opc in
+		1)
+		echo '		Fichero /etc/bind/named.conf.options'
+			cat /etc/bind/named.conf.options | more
+		;;
+		2)
+			nano /etc/bind/named.conf.options
+		;;
+		3)
+		echo '		Fichero /etc/bind/named.conf.default-zones'
+			cat /etc/bind/named.conf.default-zones | more
+		;;
+		4)
+			nano /etc/bind/named.conf.default-zones
+		;;
+		5)
+		echo '		Fichero /etc/bind/named.conf'
+			cat /etc/bind/named.conf | more
+		;;
+		6)
+			nano /etc/bind/named.conf
+		;;
+	esac
+done
+}
+####################################################################################################################################
+
+##############################################################################################################################################
+##############################################################################################################################################
+
+
+##############################################################################################################################################
+##############################################################################################################################################
+##############################################################################################################################################
+######								┏━╸┏━┓╺┳┓╻┏━╸┏━┓	╺┳┓┏━╸╻  	┏┳┓┏━╸┏┓╻╻ ╻	┏━┓┏━┓╻┏┓╻┏━╸╻┏━┓┏━┓╻  								######
+######								┃  ┃ ┃ ┃┃┃┃╺┓┃ ┃	 ┃┃┣╸ ┃  	┃┃┃┣╸ ┃┗┫┃ ┃	┣━┛┣┳┛┃┃┗┫┃  ┃┣━┛┣━┫┃  								######
+######								┗━╸┗━┛╺┻┛╹┗━┛┗━┛	╺┻┛┗━╸┗━╸	╹ ╹┗━╸╹ ╹┗━┛	╹  ╹┗╸╹╹ ╹┗━╸╹╹  ╹ ╹┗━╸								######
+##############################################################################################################################################
+##############################################################################################################################################
+##############################################################################################################################################
+
+#####################################################################################################################################
+#														Función Menú index															#
+#####################################################################################################################################
+_menuI(){
+if test ! -d ./history
+then
+	mkdir ./history
+fi
+clear
+echo '
+
+
+
+				┏┓ ╻┏┓╻╺┳┓   ┏━╸┏━╸┏━╸
+				┣┻┓┃┃┗┫ ┃┃╺━╸┃  ┣╸ ┃╺┓
+				┗━┛╹╹ ╹╺┻┛   ┗━╸╹  ┗━┛'
+sleep 1
+clear
+echo ' 
+
+
+	▄▄▄▄▄   ▄▄▄▄ ▄▄  ▄▄ ▄▄▄▄           ▄▄▄   ▄▄▄▄▄▄  ▄▄▄
+	██▀▀▀██ ▀██▀ ██  ██ ██▀▀██        ██▀▀▀█ ██▀▀▀▀ ██▀▀▀█
+	██   ██  ██  ███ ██ ██   ██      ██      ██    ██
+	█████    ██  ██████ ██   ██ ████ ██      █████ ██   ▄▄▄
+	██   ██  ██  ██ ███ ██   ██      ██      ██    ██   ▀██
+	██▄▄▄██ ▄██▄ ██  ██ ██▄▄██        ██▄▄█  ██     ██▄▄█
+	▀▀▀▀▀▀  ▀▀▀▀ ▀▀  ▀▀ ▀▀▀▀           ▀▀▀   ▀▀      ▀▀▀'
+sleep 1
+clear
+echo '
+			    _    ____ ___ ____ _____ _____ _   _ _____ _____
+			   / \  / ___|_ _/ ___|_   _| ____| \ | |_   _| ____|
+			  / _ \ \___ \| |\___ \ | | |  _| |  \| | | | |  _|
+			 / ___ \ ___) | | ___) || | | |___| |\  | | | | |___
+			/_/   \_\____/___|____/ |_| |_____|_| \_| |_| |_____|
+			     _                  ____ ___ _   _ ____
+			  __| | ___            | __ )_ _| \ | |  _ \
+			 / _` |/ _ \           |  _ \| ||  \| | | | |
+			| (_| |  __/           | |_) | || |\  | |_| |
+			 \__,_|\___|           |____/___|_| \_|____/
+			Copyright (C) 2015 Ismael Milán Márquez
+
+				MENU
+
+		0.- AYUDA
+		1.- Menú de named.conf
+		2.- Menú de named.conf.local
+		3.- Opciones de Bases de Datos de las zonas
+		4.- Otros(Pulse la opción de ayuda para mas información)
+
+		9.- Salir
+		  ___________________________________________________________
+							Elija una opción'
+}
+#####################################################################################################################################
+
+
+#####################################################################################################################################
+#																																	#
+#															Función index															#
+#																																	#
+#####################################################################################################################################
+_index(){
+# Opción por defecto
+opc="0"
+# bucle mientas la opcion indicada sea diferente de 9 (salir)
+until [ "$opc" -eq "10" ];
+do
+clear
+_menuI
+read opc
+	case $opc in
+		0)
+			echo '
+	El contenido de cada de opción del menú prinicipal son:
+		1.- Menú de named.conf:
+			·Incluir una nueva ruta en /etc/bind/named.conf.
+			·Crear una vista con su zona.
+			·Editar una vista.
+			·Borrar una vista(incluida su zona y base de datos).
+		2.- Menú de named.conf.local:
+			·Crear una zona.
+			·Editar una zona.
+			·Borrar una zona(incluida su base de datos).
+		3.- Opciones de Bases de Datos de las zonas:
+			·Visualizar una base de datos
+			·Editar una base de datos
+			·Añadir un registro a una base de datos
+		4.- Otros:
+			·Visualizar el fichero /etc/bind/named.conf.options
+			·Editar el fichero /etc/bind/named.conf.options
+			·Visualizar el fichero /etc/bind/named.conf.default-zones
+			·Editar el fichero /etc/bind/named.conf.default-zones
+			·Visualizar el fichero /etc/bind/named.conf
+			·Editar el fichero /etc/bind/named.conf
+
+________________________________________________________________________________
+
+	Este programa es de software libre.
+	Lo que significa que es de libre uso, edición y distribución.
+	Consulte http://www.gnu.org/licenses/
+
+	Puede ponerse en contacto conmigo a través de ish.professional@gmail.com
+	o de https://github.com/ishmilan.' | more
+		echo "Pulse una tecla para continuar"
+		read v;;
+		1)
+			_NC
+			;;
+		2)
+			_NCL
+			;;
+		3)
+			_BDD
+			;;
+		4)
+			_NCO
+			;;
+	esac
+done
+}
+#####################################################################################################################################
+
+##############################################################################################################################################
+##############################################################################################################################################
+
+_index #_menuI [ _NC { _menuNC _vistazona _HOPC _menuOV _borraVista} _NCL { _menuNCL _nuevazona _HOZ _menuOZ _borraZona} _BDD {_menuBDD} _NCO {_menuNCO}]
